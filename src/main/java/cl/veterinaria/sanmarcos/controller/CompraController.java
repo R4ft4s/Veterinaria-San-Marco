@@ -14,6 +14,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/compras")
@@ -21,9 +25,13 @@ public class CompraController {
     private final CompraService service;
     public CompraController(CompraService service) { this.service = service; }
     @PostMapping @ResponseStatus(HttpStatus.CREATED)
-    public CompraDto crear(@RequestBody CompraRequest request, @AuthenticationPrincipal Usuario usuario) {
+    public CompraDto crear(@Valid @RequestBody CompraRequest request, @AuthenticationPrincipal Usuario usuario) {
         return service.crear(request, usuario);
     }
     @GetMapping("/mias") public List<CompraDto> mias(@AuthenticationPrincipal Usuario usuario) { return service.mias(usuario); }
     @GetMapping @PreAuthorize("hasRole('ADMINISTRADOR')") public List<CompraDto> todas() { return service.todas(); }
+    @PatchMapping("/{id}/estado") @PreAuthorize("hasRole('ADMINISTRADOR')")
+    public CompraDto actualizarEstado(@PathVariable String id, @RequestParam String estado) {
+        return service.actualizarEstado(id, estado);
+    }
 }

@@ -27,7 +27,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (header != null && header.startsWith("Bearer ")) {
             try {
                 var usuario = usuarios.findByCorreoIgnoreCase(jwt.correo(header.substring(7))).orElse(null);
-                if (usuario != null && !usuario.isBloqueado()) {
+                if (usuario != null && !usuario.isBloqueado() && usuario.isActivo()) {
                     var auth = new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities());
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 }

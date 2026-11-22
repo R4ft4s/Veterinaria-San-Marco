@@ -1,3 +1,6 @@
 package cl.veterinaria.sanmarcos.dto;
 
-public record LoginRequest(String correo, String password) {}
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+
+public record LoginRequest(@NotBlank @Email String correo, @NotBlank String password) {}

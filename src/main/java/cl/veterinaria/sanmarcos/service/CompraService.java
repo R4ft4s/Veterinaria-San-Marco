@@ -29,6 +29,7 @@ public class CompraService {
 
     @Transactional
     public CompraDto crear(CompraRequest request, Usuario usuario) {
+        if (usuario == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "Debes iniciar sesión para confirmar la compra.");
         validar(request);
         if ("tarjeta".equals(request.metodoPago()) && request.numeroTarjeta() != null
                 && request.numeroTarjeta().replaceAll("\\s", "").endsWith("0002"))
@@ -59,17 +60,28 @@ public class CompraService {
         productos.saveAll(productosActualizados);
         String direccion = "retiro".equals(request.tipoEntrega()) ? "Retiro en clínica" : request.direccionEntrega().trim();
         String region = "retiro".equals(request.tipoEntrega()) ? "Libertador General Bernardo O'Higgins" : request.regionEntrega().trim();
-        Compra compra = new Compra("ORD-" + UUID.randomUUID(), usuario == null ? null : usuario.getId(), Instant.now(),
+        Compra compra = new Compra("ORD-" + UUID.randomUUID(), usuario, Instant.now(),
                 direccion, region, request.tipoEntrega(), request.metodoPago(), (int) total, lineas);
         return CompraDto.de(compras.save(compra));
     }
 
     @Transactional(readOnly = true)
     public List<CompraDto> mias(Usuario usuario) {
-        return compras.findByUsuarioIdOrderByFechaDesc(usuario.getId()).stream().map(CompraDto::de).toList();
+        return compras.findByUsuario_IdOrderByFechaDesc(usuario.getId()).stream().map(CompraDto::de).toList();
     }
     @Transactional(readOnly = true)
     public List<CompraDto> todas() { return compras.findAllByOrderByFechaDesc().stream().map(CompraDto::de).toList(); }
+    @Transactional
+    public CompraDto actualizarEstado(String id, String estado) {
+        if (estado == null || estado.isBlank())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "El estado es obligatorio.");
+        String limpio = estado.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!List.of("confirmado", "preparando", "despachado", "entregado", "cancelado").contains(limpio))
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Estado de compra no válido.");
+        Compra compra = compras.findById(id).orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "La compra no existe."));
+        compra.setEstado(limpio);
+        return CompraDto.de(compras.save(compra));
+    }
 
     private void validar(CompraRequest request) {
         if (request == null || request.items() == null || request.items().isEmpty())

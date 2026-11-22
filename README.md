@@ -15,15 +15,18 @@ API REST independiente para la tienda Veterinaria San Marcos. Reemplaza la persi
 1. Inicia MySQL/MariaDB en XAMPP.
 2. Por defecto, Connector/J crea `veterinaria_san_marcos` al iniciar la API si el usuario de la base de datos tiene permiso para crear esquemas. Si prefieres crearla manualmente, ejecuta `sql/01_crear_base_de_datos.sql` desde phpMyAdmin.
 3. Si tu instalación usa otro puerto o contraseña, cambia `spring.datasource.url` o `spring.datasource.password` en `src/main/resources/application.properties`. Conserva `createDatabaseIfNotExist=true` si quieres que Connector/J intente crear la base automáticamente.
-4. Hibernate crea las tablas y carga categorías, catálogo y cuentas demo al iniciar por primera vez.
+4. Define `JWT_SECRET` con al menos 32 caracteres antes de iniciar. Hibernate crea las tablas y carga categorías, catálogo y cuentas demo al iniciar por primera vez.
 
 ## Ejecutar
 
-Desde esta carpeta:
+Desde esta carpeta puedes usar el wrapper Maven, sin tener Maven en el `PATH`:
 
 ```powershell
-mvn spring-boot:run
+$env:JWT_SECRET="clave-local-de-al-menos-32-caracteres"
+.\mvnw.cmd spring-boot:run
 ```
+
+También quedó instalado Maven 3.9.9 en `C:\Tools\apache-maven-3.9.9`. Reinicia IntelliJ si aún no reconoce `mvn`; en IntelliJ abre el panel **Maven**, selecciona el proyecto y pulsa **Reload All Maven Projects**. La configuración Maven de la terminal queda disponible después de abrir una nueva terminal.
 
 La API queda en `http://localhost:8080`. Verifica el servicio en `/api/health` y el catálogo en `/api/productos`.
 
@@ -46,6 +49,8 @@ Las contraseñas se guardan con BCrypt. En las peticiones protegidas usa `Author
 | Método | Ruta | Acceso | Uso |
 |---|---|---|---|
 | POST | `/api/auth/login` | Público | Inicia sesión y entrega JWT; 3 intentos fallidos bloquean la cuenta |
+| POST | `/api/auth/refresh` | Público | Rota un refresh token válido y entrega una nueva sesión |
+| POST | `/api/auth/logout` | Sesión | Revoca los refresh tokens del usuario |
 | POST | `/api/auth/registro` | Público | Registra una cuenta cliente |
 | GET | `/api/auth/me` | Sesión | Devuelve la cuenta activa |
 | PUT | `/api/auth/perfil` | Sesión | Actualiza el perfil propio |
@@ -59,9 +64,11 @@ Las contraseñas se guardan con BCrypt. En las peticiones protegidas usa `Author
 | POST | `/api/usuarios` | Administrador o vendedor | Crea cuentas; vendedor solo puede crear clientes |
 | PUT / DELETE | `/api/usuarios/{id}` | Administrador | Actualiza o elimina cuentas |
 | POST | `/api/usuarios/{id}/desbloquear` | Administrador | Reinicia intentos fallidos |
-| POST | `/api/compras` | Público | Confirma compra; asocia cuenta si se envía un JWT válido |
+| POST | `/api/compras` | Sesión | Confirma compra y la asocia al usuario autenticado |
 | GET | `/api/compras/mias` | Sesión | Historial de la cuenta activa |
 | GET | `/api/compras` | Administrador | Historial completo |
+| PATCH | `/api/compras/{id}/estado?estado=` | Administrador | Actualiza el estado de una compra |
+| GET | `/api/reportes?periodo=semana\|mes\|ano` | Administrador | Entrega indicadores calculados desde las compras persistidas |
 
 Al confirmar compra, el servidor calcula precios y descuenta stock dentro de una transacción con bloqueo de filas. El carrito sigue del lado del cliente y se envían únicamente IDs y cantidades. El pago es académico/simulado; no se almacenan datos de tarjeta. Para simular rechazo, el número de prueba puede terminar en `0002`.
 
@@ -74,3 +81,11 @@ curl -X POST http://localhost:8080/api/compras -H "Content-Type: application/jso
 ```
 
 Los errores de negocio se responden como `{ "error": "mensaje", "campos": null }`. El frontend aún debe conectarse a esta API y adaptar sus llamadas desde `localStorage`; este backend se creó como proyecto separado y no cambia la aplicación React actual.
+
+## Pruebas
+
+```powershell
+mvn test
+```
+
+Las pruebas usan H2 en memoria y cubren servicio de salud, rechazo sin autenticación, login correcto e incorrecto.

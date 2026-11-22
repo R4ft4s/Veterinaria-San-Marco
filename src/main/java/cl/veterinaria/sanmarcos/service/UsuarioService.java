@@ -29,10 +29,10 @@ public class UsuarioService {
     }
     @Transactional(readOnly = true)
     public List<UsuarioDto> listar() { return usuarios.findAll().stream()
-            .map(user -> UsuarioDto.de(user, compras.findByUsuarioIdOrderByFechaDesc(user.getId()))).toList(); }
+            .map(user -> UsuarioDto.de(user, compras.findByUsuario_IdOrderByFechaDesc(user.getId()))).toList(); }
     @Transactional(readOnly = true)
     public UsuarioDto actual(Usuario user) {
-        return UsuarioDto.de(user, compras.findByUsuarioIdOrderByFechaDesc(user.getId()));
+        return UsuarioDto.de(user, compras.findByUsuario_IdOrderByFechaDesc(user.getId()));
     }
     @Transactional
     public UsuarioDto registrar(UsuarioRequest request) { return auth.registrar(request); }
@@ -74,7 +74,16 @@ public class UsuarioService {
     @Transactional
     public void eliminar(String id, Usuario actual) {
         if (actual.getId().equals(id)) throw new ApiException(HttpStatus.BAD_REQUEST, "No puedes eliminar tu propia cuenta.");
-        usuarios.delete(buscar(id));
+        Usuario usuario = buscar(id);
+        usuario.setActivo(false);
+        usuarios.save(usuario);
+    }
+    @Transactional
+    public UsuarioDto activar(String id) {
+        Usuario usuario = buscar(id);
+        usuario.setActivo(true);
+        usuario.setIntentosFallidos(0);
+        return actual(usuario);
     }
     @Transactional
     public UsuarioDto desbloquear(String id) {

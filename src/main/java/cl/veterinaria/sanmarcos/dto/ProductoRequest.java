@@ -1,5 +1,8 @@
 package cl.veterinaria.sanmarcos.dto;
 
-public record ProductoRequest(String id, String categoria, String nombre, String principioActivo,
-                              String presentacion, String especie, Integer stock, Integer precio,
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
+
+public record ProductoRequest(String id, @NotBlank String categoria, @NotBlank String nombre, @NotBlank String principioActivo,
+                              @NotBlank String presentacion, @NotBlank String especie, @PositiveOrZero Integer stock, @PositiveOrZero Integer precio,
                               Integer precioOferta, String icono) {}

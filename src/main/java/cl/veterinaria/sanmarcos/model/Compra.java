@@ -8,6 +8,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,8 +20,9 @@ public class Compra {
     @Id
     @Column(name = "id_orden", length = 50)
     private String idOrden;
-    @Column(name = "usuario_id", length = 40)
-    private String usuarioId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_id")
+    private Usuario usuario;
     @Column(nullable = false)
     private Instant fecha;
     @Column(name = "direccion_entrega", nullable = false, length = 200)
@@ -40,10 +42,10 @@ public class Compra {
     private List<LineaCompra> items = new ArrayList<>();
 
     protected Compra() {}
-    public Compra(String idOrden, String usuarioId, Instant fecha, String direccionEntrega, String regionEntrega,
+    public Compra(String idOrden, Usuario usuario, Instant fecha, String direccionEntrega, String regionEntrega,
                   String tipoEntrega, String metodoPago, int total, List<LineaCompra> items) {
         this.idOrden = idOrden;
-        this.usuarioId = usuarioId;
+        this.usuario = usuario;
         this.fecha = fecha;
         this.direccionEntrega = direccionEntrega;
         this.regionEntrega = regionEntrega;
@@ -53,7 +55,7 @@ public class Compra {
         this.items = new ArrayList<>(items);
     }
     public String getIdOrden() { return idOrden; }
-    public String getUsuarioId() { return usuarioId; }
+    public String getUsuarioId() { return usuario == null ? null : usuario.getId(); }
     public Instant getFecha() { return fecha; }
     public String getDireccionEntrega() { return direccionEntrega; }
     public String getRegionEntrega() { return regionEntrega; }
@@ -62,6 +64,7 @@ public class Compra {
     public String getEstado() { return estado; }
     public int getTotal() { return total; }
     public List<LineaCompra> getItems() { return items; }
+    public void setEstado(String estado) { this.estado = estado; }
 
     @Embeddable
     public static class LineaCompra {

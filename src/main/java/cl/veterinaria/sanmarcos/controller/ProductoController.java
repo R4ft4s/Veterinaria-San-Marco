@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/productos")
@@ -32,9 +33,9 @@ public class ProductoController {
     }
     @GetMapping("/{id}") public Producto obtener(@PathVariable String id) { return service.obtener(id); }
     @PostMapping @ResponseStatus(HttpStatus.CREATED) @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public Producto crear(@RequestBody ProductoRequest request) { return service.crear(request); }
+    public Producto crear(@Valid @RequestBody ProductoRequest request) { return service.crear(request); }
     @PutMapping("/{id}") @PreAuthorize("hasRole('ADMINISTRADOR')")
-    public Producto actualizar(@PathVariable String id, @RequestBody ProductoRequest request) { return service.actualizar(id, request); }
+    public Producto actualizar(@PathVariable String id, @Valid @RequestBody ProductoRequest request) { return service.actualizar(id, request); }
     @PatchMapping("/{id}/stock") @PreAuthorize("hasAnyRole('ADMINISTRADOR','VENDEDOR')")
     public Producto stock(@PathVariable String id, @RequestBody Map<String, Integer> body) { return service.stock(id, body.get("stock")); }
     @DeleteMapping("/{id}") @ResponseStatus(HttpStatus.NO_CONTENT) @PreAuthorize("hasRole('ADMINISTRADOR')")

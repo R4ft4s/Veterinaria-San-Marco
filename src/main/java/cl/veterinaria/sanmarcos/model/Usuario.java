@@ -38,6 +38,8 @@ public class Usuario implements UserDetails {
     private Rol rol = Rol.CLIENTE;
     @Column(name = "intentos_fallidos", nullable = false)
     private int intentosFallidos;
+    @Column(nullable = false)
+    private boolean activo = true;
 
     protected Usuario() {}
 
@@ -68,7 +70,9 @@ public class Usuario implements UserDetails {
     public Rol getRol() { return rol; }
     public int getIntentosFallidos() { return intentosFallidos; }
     public boolean isBloqueado() { return intentosFallidos >= 3; }
+    public boolean isActivo() { return activo; }
     public void setIntentosFallidos(int intentosFallidos) { this.intentosFallidos = intentosFallidos; }
+    public void setActivo(boolean activo) { this.activo = activo; }
     public void setPasswordHash(String password) { this.password = password; }
     public void actualizarDatos(String nombre, String apellido, String fechaNacimiento, String correo,
                                 String direccion, String region, String genero, Rol rol) {

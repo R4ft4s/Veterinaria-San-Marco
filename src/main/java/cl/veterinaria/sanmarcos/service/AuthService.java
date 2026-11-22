@@ -2,16 +2,21 @@ package cl.veterinaria.sanmarcos.service;
 
 import cl.veterinaria.sanmarcos.dto.AuthResponse;
 import cl.veterinaria.sanmarcos.dto.LoginRequest;
+import cl.veterinaria.sanmarcos.dto.RefreshRequest;
 import cl.veterinaria.sanmarcos.dto.UsuarioDto;
 import cl.veterinaria.sanmarcos.exception.ApiException;
 import cl.veterinaria.sanmarcos.model.Usuario;
 import cl.veterinaria.sanmarcos.repository.CompraRepository;
 import cl.veterinaria.sanmarcos.repository.UsuarioRepository;
+import cl.veterinaria.sanmarcos.repository.RefreshTokenRepository;
+import cl.veterinaria.sanmarcos.model.RefreshToken;
 import cl.veterinaria.sanmarcos.security.JwtService;
 import java.util.Locale;
 import java.time.LocalDate;
 import java.time.Period;
 import java.time.format.DateTimeParseException;
+import java.time.Instant;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,11 +28,14 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final JwtService jwt;
     private final CompraRepository compras;
-    public AuthService(UsuarioRepository usuarios, PasswordEncoder encoder, JwtService jwt, CompraRepository compras) {
+    private final RefreshTokenRepository refreshTokens;
+    public AuthService(UsuarioRepository usuarios, PasswordEncoder encoder, JwtService jwt, CompraRepository compras,
+                       RefreshTokenRepository refreshTokens) {
         this.usuarios = usuarios;
         this.encoder = encoder;
         this.jwt = jwt;
         this.compras = compras;
+        this.refreshTokens = refreshTokens;
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -36,6 +44,7 @@ public class AuthService {
         String correo = request.correo().trim().toLowerCase(Locale.ROOT);
         Usuario user = usuarios.findByCorreoIgnoreCase(correo)
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Credenciales incorrectas."));
+        if (!user.isActivo()) throw new ApiException(HttpStatus.FORBIDDEN, "La cuenta está desactivada.");
         if (user.isBloqueado()) throw new ApiException(HttpStatus.LOCKED, "La cuenta está bloqueada por superar 3 intentos fallidos.");
         if (!encoder.matches(request.password(), user.getPasswordHash())) {
             user.setIntentosFallidos(user.getIntentosFallidos() + 1);
@@ -49,7 +58,34 @@ public class AuthService {
             user.setIntentosFallidos(0);
             usuarios.save(user);
         }
-        return new AuthResponse(jwt.crear(user), UsuarioDto.de(user, compras.findByUsuarioIdOrderByFechaDesc(user.getId())));
+        return crearRespuesta(user);
+    }
+
+    @Transactional
+    public AuthResponse refresh(RefreshRequest request) {
+        if (request == null || request.refreshToken() == null || request.refreshToken().isBlank())
+            throw new ApiException(HttpStatus.BAD_REQUEST, "El refresh token es obligatorio.");
+        RefreshToken actual = refreshTokens.findByToken(request.refreshToken())
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "La sesión ya no es válida."));
+        if (actual.isRevoked() || actual.getExpiraEn().isBefore(Instant.now())
+                || !actual.getUsuario().isActivo())
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesión ya no es válida.");
+        actual.setRevoked(true);
+        refreshTokens.save(actual);
+        return crearRespuesta(actual.getUsuario());
+    }
+
+    @Transactional
+    public void logout(Usuario usuario) {
+        refreshTokens.deleteByUsuario(usuario);
+    }
+
+    private AuthResponse crearRespuesta(Usuario user) {
+        RefreshToken refresh = new RefreshToken(UUID.randomUUID().toString(), user,
+                Instant.now().plusSeconds(7 * 24 * 60 * 60));
+        refreshTokens.save(refresh);
+        return new AuthResponse(jwt.crear(user), refresh.getToken(),
+                UsuarioDto.de(user, compras.findByUsuario_IdOrderByFechaDesc(user.getId())));
     }
 
     @Transactional
