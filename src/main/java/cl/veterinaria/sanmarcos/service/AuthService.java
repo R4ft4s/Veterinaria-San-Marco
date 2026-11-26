@@ -1,8 +1,6 @@
 package cl.veterinaria.sanmarcos.service;
 
-import cl.veterinaria.sanmarcos.dto.AuthResponse;
 import cl.veterinaria.sanmarcos.dto.LoginRequest;
-import cl.veterinaria.sanmarcos.dto.RefreshRequest;
 import cl.veterinaria.sanmarcos.dto.UsuarioDto;
 import cl.veterinaria.sanmarcos.exception.ApiException;
 import cl.veterinaria.sanmarcos.model.Usuario;
@@ -11,6 +9,8 @@ import cl.veterinaria.sanmarcos.repository.UsuarioRepository;
 import cl.veterinaria.sanmarcos.repository.RefreshTokenRepository;
 import cl.veterinaria.sanmarcos.model.RefreshToken;
 import cl.veterinaria.sanmarcos.security.JwtService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import java.util.Locale;
 import java.time.LocalDate;
 import java.time.Period;
@@ -38,7 +38,8 @@ public class AuthService {
         this.refreshTokens = refreshTokens;
     }
 
-    public AuthResponse login(LoginRequest request) {
+    @Transactional
+    public UsuarioDto login(LoginRequest request, HttpServletResponse response) {
         if (request == null || request.correo() == null || request.password() == null)
             throw new ApiException(HttpStatus.BAD_REQUEST, "Debes completar correo y contraseña.");
         String correo = request.correo().trim().toLowerCase(Locale.ROOT);
@@ -58,34 +59,50 @@ public class AuthService {
             user.setIntentosFallidos(0);
             usuarios.save(user);
         }
-        return crearRespuesta(user);
+        return crearRespuesta(user, response);
     }
 
     @Transactional
-    public AuthResponse refresh(RefreshRequest request) {
-        if (request == null || request.refreshToken() == null || request.refreshToken().isBlank())
-            throw new ApiException(HttpStatus.BAD_REQUEST, "El refresh token es obligatorio.");
-        RefreshToken actual = refreshTokens.findByToken(request.refreshToken())
-                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "La sesión ya no es válida."));
+    public UsuarioDto refresh(HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = jwt.leerRefreshCookie(request);
+        if (refreshToken == null || refreshToken.isBlank())
+            return invalidarRefresh(response);
+        RefreshToken actual = refreshTokens.findByToken(refreshToken)
+                .orElse(null);
+        if (actual == null) return invalidarRefresh(response);
         if (actual.isRevoked() || actual.getExpiraEn().isBefore(Instant.now())
                 || !actual.getUsuario().isActivo())
-            throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesión ya no es válida.");
+            return invalidarRefresh(response);
         actual.setRevoked(true);
         refreshTokens.save(actual);
-        return crearRespuesta(actual.getUsuario());
+        return crearRespuesta(actual.getUsuario(), response);
     }
 
     @Transactional
-    public void logout(Usuario usuario) {
-        refreshTokens.deleteByUsuario(usuario);
+    public void logout(Usuario usuario, HttpServletRequest request, HttpServletResponse response) {
+        String refreshToken = jwt.leerRefreshCookie(request);
+        if (refreshToken != null) {
+            refreshTokens.findByToken(refreshToken).ifPresent(token -> {
+                if (token.getUsuario().getId().equals(usuario.getId())) {
+                    token.setRevoked(true);
+                    refreshTokens.save(token);
+                }
+            });
+        }
+        jwt.limpiarCookies(response);
     }
 
-    private AuthResponse crearRespuesta(Usuario user) {
+    private UsuarioDto invalidarRefresh(HttpServletResponse response) {
+        jwt.limpiarCookies(response);
+        throw new ApiException(HttpStatus.UNAUTHORIZED, "La sesión ya no es válida.");
+    }
+
+    private UsuarioDto crearRespuesta(Usuario user, HttpServletResponse response) {
         RefreshToken refresh = new RefreshToken(UUID.randomUUID().toString(), user,
                 Instant.now().plusSeconds(7 * 24 * 60 * 60));
         refreshTokens.save(refresh);
-        return new AuthResponse(jwt.crear(user), refresh.getToken(),
-                UsuarioDto.de(user, compras.findByUsuario_IdOrderByFechaDesc(user.getId())));
+        jwt.emitirCookies(response, jwt.crear(user), refresh.getToken());
+        return UsuarioDto.de(user, compras.findByUsuario_IdOrderByFechaDesc(user.getId()));
     }
 
     @Transactional

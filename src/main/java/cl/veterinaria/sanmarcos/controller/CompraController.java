@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/compras")
+@RequestMapping("/api/v1/compras")
 public class CompraController {
     private final CompraService service;
     public CompraController(CompraService service) { this.service = service; }
